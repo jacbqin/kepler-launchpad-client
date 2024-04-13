@@ -12,7 +12,7 @@ const apiPrefix = "https://b.kepler.homes/api/launchpad/solana";
 
 import { PublicKey } from "@solana/web3.js";
 const connection = new Connection(`https://api.devnet.solana.com/`, "confirmed");
-const programId = new PublicKey("93mEBhmBTC9gDn32JiHaiLge4F1ta5kwwKukrWqBuuDq");
+const programId = new PublicKey("Bjxk4pzkq8TVRMvK38Kfm56GRJPNvHkS8FUAgdvTGzEu");
 const client = new LaunchpadClient(connection, programId);
 const user = Keypair.fromSecretKey(base58.decode(privateKey));
 console.log("user: ", user.publicKey.toBase58());
@@ -23,11 +23,11 @@ const logTs = function (tag: string, ts: string) {
 
 async function main() {
     await userLogin();
-    await solPay();
+    // await solPay();
     await usdcPay();
-    await claim();
-    await refundSol();
-    await refundUsdc();
+    // await claim();
+    // await refundSol();
+    // await refundUsdc();
 }
 
 async function userLogin() {
@@ -47,10 +47,11 @@ const solPay = async () => {
     console.log("url", url);
     let res = await axios.get(url);
     console.log(res.data);
-    const { expire_at, vault, message, signature, signer } = res.data.data;
+    const { expire_at, vault, message, signature, signer, sol_price } = res.data.data;
     const ts = await client.solPay(
         user,
         amount,
+        new BN(sol_price),
         new BN(expire_at),
         new PublicKey(vault),
         new PublicKey(signer),
@@ -66,13 +67,14 @@ const usdcPay = async () => {
     console.log("url", url);
     let res = await axios.get(url);
     console.log(res.data);
-    const { price, usdc, expire_at, vault, message, signature, signer } = res.data.data;
+    const { token_price, sol_price, usdc, expire_at, vault, message, signature, signer } = res.data.data;
     const ts = await client.tokenPay(
         user, //
         new PublicKey(usdc),
         new PublicKey(vault),
         amount,
-        new BN(price),
+        new BN(token_price),
+        new BN(sol_price),
         new BN(expire_at),
         new PublicKey(signer),
         base58.decode(message),

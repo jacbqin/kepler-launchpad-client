@@ -55,7 +55,7 @@ export class LaunchpadClient {
         }
     }
 
-    async solPay(user: Keypair, amount: BN, expireAt: BN, vault: PublicKey, signer: PublicKey, message: Uint8Array, signature: Uint8Array) {
+    async solPay(user: Keypair, amount: BN, solPrice: BN, expireAt: BN, vault: PublicKey, signer: PublicKey, message: Uint8Array, signature: Uint8Array) {
         const launchpadAccountPDA = this.findLaunchpadAccountPDA();
         let ix = new TransactionInstruction({
             keys: [
@@ -66,7 +66,7 @@ export class LaunchpadClient {
                 { pubkey: SYSVAR_INSTRUCTIONS_PUBKEY, isSigner: false, isWritable: false }, // sysvar
             ],
             programId: this.programId,
-            data: new SolPay({ amount, expireAt, signature }).toBuffer(),
+            data: new SolPay({ amount, solPrice, expireAt, signature }).toBuffer(),
         });
         let tx = new Transaction().add(this.ed25519Instruction(signer, message, signature)).add(ix);
         return await sendAndConfirmTransaction(this.connection, tx, [user], { skipPreflight: true });
@@ -77,7 +77,8 @@ export class LaunchpadClient {
         mint: PublicKey,
         recipient: PublicKey,
         amount: BN,
-        price: BN,
+        tokenPrice: BN,
+        solPrice: BN,
         expireAt: BN,
         signer: PublicKey,
         message: Uint8Array,
@@ -99,7 +100,7 @@ export class LaunchpadClient {
                 { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // System program
             ],
             programId: this.programId,
-            data: new TokenPay({ amount, price, expireAt, signature }).toBuffer(),
+            data: new TokenPay({ amount, tokenPrice, solPrice, expireAt, signature }).toBuffer(),
         });
         let tx = new Transaction().add(this.ed25519Instruction(signer, message, signature)).add(ix);
         return await sendAndConfirmTransaction(this.connection, tx, [user], { skipPreflight: false });

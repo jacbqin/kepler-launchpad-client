@@ -53,7 +53,15 @@ export class MintNFT extends BaseArgs {
 
 export class SolPay extends BaseArgs {
     instruction = Instructions.SolPay;
-    schema = { struct: { instruction: "u8", amount: "u64", expireAt: "u64", signature: { array: { type: "u8", len: 64 } } } };
+    schema = {
+        struct: {
+            instruction: "u8",
+            amount: "u64",
+            solPrice: "u64",
+            expireAt: "u64",
+            signature: { array: { type: "u8", len: 64 } },
+        },
+    };
 }
 
 export class TokenPay extends BaseArgs {
@@ -62,7 +70,8 @@ export class TokenPay extends BaseArgs {
         struct: {
             instruction: "u8",
             amount: "u64",
-            price: "u64",
+            tokenPrice: "u64",
+            solPrice: "u64",
             expireAt: "u64",
             signature: { array: { type: "u8", len: 64 } },
         },
