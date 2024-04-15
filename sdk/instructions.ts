@@ -1,3 +1,4 @@
+import BN from "bn.js";
 import * as borsh from "borsh";
 
 enum Instructions {
@@ -11,6 +12,7 @@ enum Instructions {
     Claim,
     RefundToken,
     RefundSOL,
+    Redeem,
 }
 
 abstract class BaseArgs {
@@ -81,6 +83,20 @@ export class TokenPay extends BaseArgs {
 export class Claim extends BaseArgs {
     instruction = Instructions.Claim;
     schema = { struct: { instruction: "u8", amount: "u64", expireAt: "u64", signature: { array: { type: "u8", len: 64 } } } };
+}
+
+export class Redeem extends BaseArgs {
+    instruction = Instructions.Redeem;
+    schema = {
+        struct: {
+            instruction: "u8",
+            redeemId: "u64",
+            powerValue: "u64",
+            tokenAmount: "u64",
+            expireAt: "u64",
+            signature: { array: { type: "u8", len: 64 } },
+        },
+    };
 }
 
 export class RefundToken extends BaseArgs {

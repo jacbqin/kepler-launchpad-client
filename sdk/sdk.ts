@@ -3,15 +3,34 @@ import {
     Keypair,
     PublicKey,
     SystemProgram,
+    SYSVAR_RENT_PUBKEY,
     SYSVAR_INSTRUCTIONS_PUBKEY,
     TransactionInstruction,
     Transaction,
     sendAndConfirmTransaction,
     Ed25519Program,
 } from "@solana/web3.js";
-import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress, TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import {
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+    getAssociatedTokenAddress,
+    TOKEN_PROGRAM_ID,
+    createTransferInstruction,
+    getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
 import { Buffer } from "buffer";
-import { SolPay, TokenPay, Claim, RefundToken, RefundSOL } from "../sdk/instructions";
+import {
+    CreateToken,
+    MintNFT as MintToken,
+    InitializeLaunchpad,
+    SolPay,
+    TokenPay,
+    Claim,
+    InitializeTokenVault,
+    RefundToken,
+    RefundSOL,
+    InitializeSolVault,
+    Redeem,
+} from "../sdk/instructions";
 import { LaunchpadAccount } from "../sdk/accounts";
 import BN from "bn.js";
 
@@ -39,6 +58,10 @@ export class LaunchpadClient {
         return PublicKey.findProgramAddressSync([Buffer.from("Refund"), user.toBytes()], this.programId)[0];
     }
 
+    findUserRedeemPDA(user: PublicKey, mint?: PublicKey) {
+        return PublicKey.findProgramAddressSync([Buffer.from("Redeem"), user.toBytes(), mint.toBytes()], this.programId)[0];
+    }
+
     async getTokenBalance(tokenAccount: PublicKey) {
         try {
             return (await this.connection.getTokenAccountBalance(tokenAccount)).value;
@@ -53,6 +76,89 @@ export class LaunchpadClient {
         if (info.value) {
             return new LaunchpadAccount(info.value.data);
         }
+    }
+
+    async initializeLaunchpad(admin: Keypair, signer: PublicKey) {
+        const launchpadAccountPDA = this.findLaunchpadAccountPDA();
+        const mintAuthorityPDA = this.findMintAuthorityPDA();
+        const instructionData = new InitializeLaunchpad({});
+        let tx = new Transaction().add(
+            new TransactionInstruction({
+                keys: [
+                    { pubkey: admin.publicKey, isSigner: true, isWritable: true }, // Payer
+                    { pubkey: signer, isSigner: false, isWritable: false }, // Signer
+                    { pubkey: launchpadAccountPDA, isSigner: false, isWritable: true }, // launchpad account
+                    { pubkey: mintAuthorityPDA, isSigner: false, isWritable: true },
+                    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // System program
+                ],
+                programId: this.programId,
+                data: instructionData.toBuffer(),
+            })
+        );
+        return await sendAndConfirmTransaction(this.connection, tx, [admin], { skipPreflight: false });
+    }
+
+    async initializeTokenVault(admin: Keypair, mint: PublicKey) {
+        let tx = new Transaction().add(
+            new TransactionInstruction({
+                keys: [
+                    { pubkey: admin.publicKey, isSigner: true, isWritable: true }, // Payer
+                    { pubkey: this.findLaunchpadAccountPDA(), isSigner: false, isWritable: true }, // launchpad account
+                    { pubkey: mint, isSigner: false, isWritable: true }, // mint
+                    { pubkey: this.findTokenVaultPDA(mint), isSigner: false, isWritable: true }, // vault
+                    { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }, // Token program
+                    { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false }, // Rent account
+                    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // System program
+                ],
+                programId: this.programId,
+                data: new InitializeTokenVault({}).toBuffer(),
+            })
+        );
+        return await sendAndConfirmTransaction(this.connection, tx, [admin], { skipPreflight: false });
+    }
+
+    async initializeSolVault(admin: Keypair) {
+        let tx = new Transaction().add(
+            new TransactionInstruction({
+                keys: [
+                    { pubkey: admin.publicKey, isSigner: true, isWritable: true }, // Payer
+                    { pubkey: this.findSolVaultPDA(), isSigner: false, isWritable: true }, // sol vault
+                    { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false }, // Rent account
+                    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // System program
+                ],
+                programId: this.programId,
+                data: new InitializeSolVault({ lamports: 1e3 }).toBuffer(),
+            })
+        );
+        return await sendAndConfirmTransaction(this.connection, tx, [admin], { skipPreflight: false });
+    }
+
+    async mintToken(admin: Keypair, mint: PublicKey, to: PublicKey, amount: BN) {
+        const associatedTokenAccountAddress = await getAssociatedTokenAddress(mint, to);
+        const instructionData = new MintToken({ amount });
+        let ix = new TransactionInstruction({
+            keys: [
+                { pubkey: admin.publicKey, isSigner: true, isWritable: true }, // Payer
+                { pubkey: this.findLaunchpadAccountPDA(), isSigner: false, isWritable: true }, // launchpad account
+                { pubkey: to, isSigner: false, isWritable: false }, // to
+                { pubkey: mint, isSigner: false, isWritable: true }, // Mint account
+                { pubkey: this.findMintAuthorityPDA(), isSigner: false, isWritable: true }, // Mint authority account
+                { pubkey: associatedTokenAccountAddress, isSigner: false, isWritable: true }, // ATA
+                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // System program
+                { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }, // Token program
+                { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }, // Associated token program
+            ],
+            programId: this.programId,
+            data: instructionData.toBuffer(),
+        });
+        return await sendAndConfirmTransaction(this.connection, new Transaction().add(ix), [admin]);
+    }
+
+    async transferTokenToVault(user: Keypair, mint: PublicKey, amount: number) {
+        const sourceAccount = getAssociatedTokenAddressSync(mint, user.publicKey);
+        const destinationAccount = this.findTokenVaultPDA(mint);
+        const tx = new Transaction().add(createTransferInstruction(sourceAccount, destinationAccount, user.publicKey, amount));
+        return await sendAndConfirmTransaction(this.connection, tx, [user], { skipPreflight: false });
     }
 
     async solPay(user: Keypair, amount: BN, solPrice: BN, expireAt: BN, vault: PublicKey, signer: PublicKey, message: Uint8Array, signature: Uint8Array) {
@@ -123,6 +229,40 @@ export class LaunchpadClient {
             ],
             programId: this.programId,
             data: new Claim({ amount, expireAt, signature }).toBuffer(),
+        });
+        let tx = new Transaction().add(this.ed25519Instruction(signer, message, signature)).add(ix);
+        return await sendAndConfirmTransaction(this.connection, tx, [user], { skipPreflight: false });
+    }
+
+    async redeem(
+        user: Keypair,
+        mint: PublicKey,
+        redeemId: BN,
+        powerValue: BN,
+        tokenAmount: BN,
+        expireAt: BN,
+        signer: PublicKey,
+        message: Uint8Array,
+        signature: Uint8Array
+    ) {
+        const vault_account = this.findTokenVaultPDA(mint);
+        const user_token_account = getAssociatedTokenAddressSync(mint, user.publicKey);
+
+        let ix = new TransactionInstruction({
+            keys: [
+                { pubkey: user.publicKey, isSigner: true, isWritable: true }, // Payer
+                { pubkey: this.findLaunchpadAccountPDA(), isSigner: false, isWritable: true }, // launchpad account
+                { pubkey: this.findUserRedeemPDA(user.publicKey, mint), isSigner: false, isWritable: true }, // user redeem account
+                { pubkey: mint, isSigner: false, isWritable: true }, // Mint account
+                { pubkey: vault_account, isSigner: false, isWritable: true }, //vault token account
+                { pubkey: user_token_account, isSigner: false, isWritable: true }, // user_token_account
+                { pubkey: SYSVAR_INSTRUCTIONS_PUBKEY, isSigner: false, isWritable: false }, // sysvar
+                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // System program
+                { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }, // Token program
+                { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }, // Associated token program
+            ],
+            programId: this.programId,
+            data: new Redeem({ redeemId, powerValue, tokenAmount, expireAt, signature }).toBuffer(),
         });
         let tx = new Transaction().add(this.ed25519Instruction(signer, message, signature)).add(ix);
         return await sendAndConfirmTransaction(this.connection, tx, [user], { skipPreflight: false });
