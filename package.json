@@ -9,7 +9,8 @@
         "buffer": "^6.0.3",
         "tweetnacl": "^1.0.3",
         "tweetnacl-util": "^0.15.1",
-        "web3-utils": "^4.2.0"
+        "web3-utils": "^4.2.0",
+        "@metaplex-foundation/mpl-token-metadata": "^2.5.2"
     },
     "devDependencies": {
         "@types/bn.js": "^5.1.5",

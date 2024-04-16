@@ -13,6 +13,7 @@ enum Instructions {
     RefundToken,
     RefundSOL,
     Redeem,
+    VekeplRecycleClaim,
 }
 
 abstract class BaseArgs {
@@ -93,6 +94,19 @@ export class Redeem extends BaseArgs {
             redeemId: "u64",
             powerValue: "u64",
             tokenAmount: "u64",
+            expireAt: "u64",
+            signature: { array: { type: "u8", len: 64 } },
+        },
+    };
+}
+
+export class VekeplRecycleClaim extends BaseArgs {
+    instruction = Instructions.VekeplRecycleClaim;
+    schema = {
+        struct: {
+            instruction: "u8",
+            claimId: "u64",
+            amount: "u64",
             expireAt: "u64",
             signature: { array: { type: "u8", len: 64 } },
         },

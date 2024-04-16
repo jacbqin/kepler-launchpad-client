@@ -1,3 +1,5 @@
+import { VekeplRecycleClaim } from "./instructions";
+import { Key, PROGRAM_ID as TOKEN_METADATA_PROGRAM_ID } from "@metaplex-foundation/mpl-token-metadata";
 import {
     Connection,
     Keypair,
@@ -60,6 +62,10 @@ export class LaunchpadClient {
 
     findUserRedeemPDA(user: PublicKey, mint?: PublicKey) {
         return PublicKey.findProgramAddressSync([Buffer.from("Redeem"), user.toBytes(), mint.toBytes()], this.programId)[0];
+    }
+
+    findUserVekeplRecycleClaimPDA(user: PublicKey, mint?: PublicKey) {
+        return PublicKey.findProgramAddressSync([Buffer.from("VekeplRecycleClaim"), user.toBytes(), mint.toBytes()], this.programId)[0];
     }
 
     async getTokenBalance(tokenAccount: PublicKey) {
@@ -131,6 +137,29 @@ export class LaunchpadClient {
             })
         );
         return await sendAndConfirmTransaction(this.connection, tx, [admin], { skipPreflight: false });
+    }
+
+    async createToken(admin: Keypair, mintKeypair: Keypair, name: string, symbol: string, uri: string, decimals: number) {
+        const metadataAddress = PublicKey.findProgramAddressSync(
+            [Buffer.from("metadata"), TOKEN_METADATA_PROGRAM_ID.toBuffer(), mintKeypair.publicKey.toBuffer()],
+            TOKEN_METADATA_PROGRAM_ID
+        )[0];
+        let ix = new TransactionInstruction({
+            keys: [
+                { pubkey: admin.publicKey, isSigner: true, isWritable: true }, // Payer
+                { pubkey: this.findLaunchpadAccountPDA(), isSigner: false, isWritable: true }, // launchpad account
+                { pubkey: mintKeypair.publicKey, isSigner: true, isWritable: true }, // Mint account
+                { pubkey: this.findMintAuthorityPDA(), isSigner: false, isWritable: true }, // Mint authority account
+                { pubkey: metadataAddress, isSigner: false, isWritable: true }, // Metadata account
+                { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false }, // Rent account
+                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // System program
+                { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }, // Token program
+                { pubkey: TOKEN_METADATA_PROGRAM_ID, isSigner: false, isWritable: false }, // Token metadata program
+            ],
+            programId: this.programId,
+            data: new CreateToken({ name, symbol, uri, decimals }).toBuffer(),
+        });
+        return await sendAndConfirmTransaction(this.connection, new Transaction().add(ix), [admin, mintKeypair], { skipPreflight: false });
     }
 
     async mintToken(admin: Keypair, mint: PublicKey, to: PublicKey, amount: BN) {
@@ -247,7 +276,6 @@ export class LaunchpadClient {
     ) {
         const vault_account = this.findTokenVaultPDA(mint);
         const user_token_account = getAssociatedTokenAddressSync(mint, user.publicKey);
-
         let ix = new TransactionInstruction({
             keys: [
                 { pubkey: user.publicKey, isSigner: true, isWritable: true }, // Payer
@@ -263,6 +291,38 @@ export class LaunchpadClient {
             ],
             programId: this.programId,
             data: new Redeem({ redeemId, powerValue, tokenAmount, expireAt, signature }).toBuffer(),
+        });
+        let tx = new Transaction().add(this.ed25519Instruction(signer, message, signature)).add(ix);
+        return await sendAndConfirmTransaction(this.connection, tx, [user], { skipPreflight: false });
+    }
+
+    async vekeplRecycleClaim(
+        user: Keypair,
+        mint: PublicKey,
+        claimId: BN,
+        amount: BN,
+        expireAt: BN,
+        signer: PublicKey,
+        message: Uint8Array,
+        signature: Uint8Array
+    ) {
+        const vault_account = this.findTokenVaultPDA(mint);
+        const user_token_account = getAssociatedTokenAddressSync(mint, user.publicKey);
+        let ix = new TransactionInstruction({
+            keys: [
+                { pubkey: user.publicKey, isSigner: true, isWritable: true }, // Payer
+                { pubkey: this.findLaunchpadAccountPDA(), isSigner: false, isWritable: true }, // launchpad account
+                { pubkey: this.findUserVekeplRecycleClaimPDA(user.publicKey, mint), isSigner: false, isWritable: true }, // user claim account
+                { pubkey: mint, isSigner: false, isWritable: true }, // Mint account
+                { pubkey: vault_account, isSigner: false, isWritable: true }, //vault token account
+                { pubkey: user_token_account, isSigner: false, isWritable: true }, // user_token_account
+                { pubkey: SYSVAR_INSTRUCTIONS_PUBKEY, isSigner: false, isWritable: false }, // sysvar
+                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // System program
+                { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }, // Token program
+                { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }, // Associated token program
+            ],
+            programId: this.programId,
+            data: new VekeplRecycleClaim({ claimId, amount, expireAt, signature }).toBuffer(),
         });
         let tx = new Transaction().add(this.ed25519Instruction(signer, message, signature)).add(ix);
         return await sendAndConfirmTransaction(this.connection, tx, [user], { skipPreflight: false });
