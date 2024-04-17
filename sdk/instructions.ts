@@ -3,14 +3,11 @@ import * as borsh from "borsh";
 
 enum Instructions {
     InitializeLaunchpad,
-    CreateToken,
-    MintToken,
     InitializeSolVault,
     InitializeTokenVault,
     SolPay,
     TokenPay,
     Claim,
-    RefundToken,
     RefundSOL,
     Redeem,
     VekeplRecycleClaim,
@@ -44,16 +41,6 @@ export class InitializeSolVault extends BaseArgs {
     schema = { struct: { instruction: "u8", lamports: "u64" } };
 }
 
-export class CreateToken extends BaseArgs {
-    instruction = Instructions.CreateToken;
-    schema = { struct: { instruction: "u8", name: "string", symbol: "string", uri: "string", decimals: "u8" } };
-}
-
-export class MintNFT extends BaseArgs {
-    instruction = Instructions.MintToken;
-    schema = { struct: { instruction: "u8", amount: "u64" } };
-}
-
 export class SolPay extends BaseArgs {
     instruction = Instructions.SolPay;
     schema = {
@@ -83,7 +70,15 @@ export class TokenPay extends BaseArgs {
 
 export class Claim extends BaseArgs {
     instruction = Instructions.Claim;
-    schema = { struct: { instruction: "u8", amount: "u64", expireAt: "u64", signature: { array: { type: "u8", len: 64 } } } };
+    schema = {
+        struct: {
+            instruction: "u8",
+            claimId: "u64",
+            amount: "u64",
+            expireAt: "u64",
+            signature: { array: { type: "u8", len: 64 } },
+        },
+    };
 }
 
 export class Redeem extends BaseArgs {
@@ -113,12 +108,16 @@ export class VekeplRecycleClaim extends BaseArgs {
     };
 }
 
-export class RefundToken extends BaseArgs {
-    instruction = Instructions.RefundToken;
-    schema = { struct: { instruction: "u8", refundId: "u64", amount: "u64", expireAt: "u64", signature: { array: { type: "u8", len: 64 } } } };
-}
-
 export class RefundSOL extends BaseArgs {
     instruction = Instructions.RefundSOL;
-    schema = { struct: { instruction: "u8", refundId: "u64", amount: "u64", expireAt: "u64", signature: { array: { type: "u8", len: 64 } } } };
+    schema = {
+        struct: {
+            instruction: "u8",
+            refundId: "u64",
+            solAmount: "u64",
+            solPrice: "u64",
+            expireAt: "u64",
+            signature: { array: { type: "u8", len: 64 } },
+        },
+    };
 }

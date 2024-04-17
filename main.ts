@@ -26,8 +26,7 @@ async function main() {
     // await solPay();
     await usdcPay();
     // await claim();
-    // await refundSol();
-    // await refundUsdc();
+    // await refund();
 }
 
 async function userLogin() {
@@ -88,10 +87,12 @@ const claim = async () => {
     console.log("url", url);
     let res = await axios.get(url);
     console.log(res.data);
-    const { amount, mint, expire_at, message, signature, signer } = res.data.data;
+    const { claim_id, amount, mint, expire_at, message, signature, signer } = res.data.data;
+    console.log({ claim_id, amount, mint, expire_at, message, signature, signer });
     const ts = await client.claim(
         user,
         new PublicKey(mint),
+        new BN(claim_id),
         new BN(amount),
         new BN(expire_at),
         new PublicKey(signer),
@@ -101,41 +102,23 @@ const claim = async () => {
     logTs("claim", ts);
 };
 
-const refundSol = async () => {
+const refund = async () => {
     const url = `${apiPrefix}/refund/refund-sol-params?Authorization=${token}`;
     console.log("url", url);
     let res = await axios.get(url);
     console.log(res.data);
-    const { amount, expire_at, refund_id, message, signature, signer } = res.data.data;
+    const { sol_amount, sol_price, expire_at, refund_id, message, signature, signer } = res.data.data;
     const ts = await client.refundSOL(
         user,
         new BN(refund_id),
-        new BN(amount),
+        new BN(sol_amount),
+        new BN(sol_price),
         new BN(expire_at),
         new PublicKey(signer),
         base58.decode(message),
         base58.decode(signature)
     );
     logTs("refund sol", ts);
-};
-
-const refundUsdc = async () => {
-    const url = `${apiPrefix}/refund/refund-usdc-params?Authorization=${token}`;
-    console.log("url", url);
-    let res = await axios.get(url);
-    console.log(res.data);
-    const { amount, expire_at, usdc, refund_id, message, signature, signer } = res.data.data;
-    const ts = await client.refundToken(
-        user,
-        new PublicKey(usdc),
-        new BN(refund_id),
-        new BN(amount),
-        new BN(expire_at),
-        new PublicKey(signer),
-        base58.decode(message),
-        base58.decode(signature)
-    );
-    logTs("refund usdc", ts);
 };
 
 main().catch((error) => {
