@@ -12,7 +12,7 @@ const apiPrefix = "https://b.kepler.homes/api/launchpad/solana";
 
 import { PublicKey } from "@solana/web3.js";
 const connection = new Connection(`https://api.devnet.solana.com/`, "confirmed");
-const programId = new PublicKey("Bjxk4pzkq8TVRMvK38Kfm56GRJPNvHkS8FUAgdvTGzEu");
+const programId = new PublicKey("FFrNNqFRYZ8MvF7Dh6msn4kPNCagW7NtjLnAveS4ALgd");
 const client = new LaunchpadClient(connection, programId);
 const user = Keypair.fromSecretKey(base58.decode(privateKey));
 console.log("user: ", user.publicKey.toBase58());
